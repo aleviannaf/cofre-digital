@@ -39,25 +39,25 @@ app/api/
 
 Cada feature contém:
 
-- http/ → Controllers, Guards, Decorators
-- application/ → Serviços e regras de negócio
-- domain/ → Contratos e entidades (quando necessário)
-- infrastructure/ → Persistência e integrações
+- http/ → Controllers, Guards, Decorators  
+- application/ → Serviços e regras de negócio  
+- domain/ → Contratos e entidades  
+- infrastructure/ → Persistência e integrações  
 
 ---
 
 # 🚀 Tecnologias Utilizadas
 
-- Node.js 22 LTS
-- NestJS (TypeScript)
-- Prisma ORM (v7)
-- PostgreSQL 16
-- RabbitMQ
-- JWT (Passport Strategy)
-- AES-256-GCM (criptografia real)
-- Docker & Docker Compose
-- Jest
-- Swagger (OpenAPI)
+- Node.js 22 LTS  
+- NestJS (TypeScript)  
+- Prisma ORM (v7)  
+- PostgreSQL 16  
+- RabbitMQ  
+- JWT (Passport Strategy)  
+- AES-256-GCM (criptografia real)  
+- Docker & Docker Compose  
+- Jest  
+- Swagger (OpenAPI)  
 
 ---
 
@@ -65,16 +65,16 @@ Cada feature contém:
 
 ## 1️⃣ Autenticação
 
-- POST /auth/register
-- POST /auth/login
+- POST /auth/register  
+- POST /auth/login  
 - GET /auth/me (protegido)
 
 Segurança:
 
-- Hash seguro de senha
-- JWT Bearer Token
-- Passport Strategy
-- Guard de autenticação
+- Hash seguro de senha  
+- JWT Bearer Token  
+- Passport Strategy  
+- Guard de autenticação  
 
 ---
 
@@ -84,26 +84,26 @@ Usuários autenticados podem:
 
 ### ➤ Criar segredo criptografado
 
-- Criptografia simétrica AES-256-GCM
+- Criptografia simétrica AES-256-GCM  
 - Armazena:
-  - cipherText
-  - IV
-  - authTag
-  - algorithm
-  - keyVersion
-- Nunca armazena texto puro
+  - cipherText  
+  - IV  
+  - authTag  
+  - algorithm  
+  - keyVersion  
+- Nunca armazena texto puro  
 
 ### ➤ Recuperar segredo
 
-- Apenas o dono pode acessar
-- Descriptografia antes do retorno
-- Validação de ownership
+- Apenas o dono pode acessar  
+- Descriptografia antes do retorno  
+- Validação de ownership  
 
 ### ➤ Agendar liberação futura
 
-- POST /secrets/:id/schedules
-- Data/hora futura obrigatória
-- Publicação automática em RabbitMQ
+- POST /secrets/:id/schedules  
+- Data/hora futura obrigatória  
+- Publicação automática em RabbitMQ  
 
 ---
 
@@ -111,32 +111,32 @@ Usuários autenticados podem:
 
 Fluxo implementado:
 
-1. Schedule criado → status PENDING
-2. Mensagem publicada → status QUEUED
+1. Schedule criado → status PENDING  
+2. Mensagem publicada → status QUEUED  
 3. Consumer:
-   - Se horário ainda não chegou → envia para delay queue (TTL + DLX)
-   - Se chegou → processa
+   - Se horário ainda não chegou → envia para delay queue (TTL + DLX)  
+   - Se chegou → processa  
 4. Ao processar:
-   - Secret → AVAILABLE
-   - Schedule → PROCESSED
-   - Histórico criado em secret_release_history
+   - Secret → AVAILABLE  
+   - Schedule → PROCESSED  
+   - Histórico criado em secret_release_history  
 
 ### Estratégia Técnica
 
 Delay implementado usando:
 
-- x-message-ttl
-- x-dead-letter-exchange
-- x-dead-letter-routing-key
+- x-message-ttl  
+- x-dead-letter-exchange  
+- x-dead-letter-routing-key  
 
 Sem uso de plugins externos.
 
 Garantias implementadas:
 
-- Idempotência
-- Processamento transacional
-- Controle de tentativas
-- Retry simples via delay queue
+- Idempotência  
+- Processamento transacional  
+- Controle de tentativas  
+- Retry simples via delay queue  
 
 ---
 
@@ -148,10 +148,10 @@ http://localhost:3000/docs
 
 Inclui:
 
-- Autenticação JWT
-- Schemas tipados
-- Exemplos de request
-- Responses 400 / 401 / 403 / 404
+- Autenticação JWT  
+- Schemas tipados  
+- Exemplos de request  
+- Responses 400 / 401 / 403 / 404  
 
 ---
 
@@ -165,16 +165,52 @@ npm run test
 
 Cobertura inclui:
 
-- Serviço de criptografia
-- Password hashing
-- Auth service
-- RabbitMQ publisher
-- Processor de agendamento
-- Regras centrais de negócio
+- Serviço de criptografia  
+- Password hashing  
+- Auth service  
+- RabbitMQ publisher  
+- Processor de agendamento  
+- Regras centrais de negócio  
 
 ---
 
 # 🐳 Executando com Docker
+
+## Pré-requisitos
+
+- Docker  
+- Docker Compose  
+
+## 1️⃣ Configurar variáveis de ambiente
+
+O projeto utiliza `.env.docker`.
+
+Caso exista apenas o arquivo de exemplo, copie:
+
+```
+cp .env.docker.example .env.docker
+```
+
+O arquivo deve conter:
+
+```
+PORT=3000
+
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/cofredigital?schema=public
+
+JWT_SECRET=uma-string-bem-grande-e-segura
+JWT_EXPIRES_IN_SECONDS=900
+
+ENCRYPTION_KEY_BASE64=dYmnf9qUOe21GhnibuiTtTxWVxGgeIafW5m6agJGSdw=
+
+RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+RABBITMQ_EXCHANGE=secret-release-ex
+RABBITMQ_QUEUE=secret-release
+RABBITMQ_DELAY_QUEUE=secret-release.delay
+RABBITMQ_DELAY_MS=30000
+```
+
+## 2️⃣ Subir os containers
 
 Na raiz do projeto:
 
@@ -182,19 +218,30 @@ Na raiz do projeto:
 docker compose up -d --build
 ```
 
-Serviços iniciados:
+O comando irá:
 
-- API
-- PostgreSQL
-- RabbitMQ
+- Subir PostgreSQL  
+- Subir RabbitMQ  
+- Gerar Prisma Client  
+- Aplicar automaticamente as migrations  
+- Iniciar a API  
 
 Swagger:
-http://localhost:3000/docs
+http://localhost:3000/docs  
 
 RabbitMQ UI:
 http://localhost:15672  
 Usuário: guest  
 Senha: guest  
+
+## 3️⃣ Reiniciar ambiente do zero (opcional)
+
+```
+docker compose down -v
+docker compose up -d --build
+```
+
+Após esses passos, o sistema estará totalmente funcional sem necessidade de execução manual de migrations.
 
 ---
 
@@ -207,7 +254,24 @@ cd app/api
 npm install
 ```
 
-2. Configurar `.env`
+2. Criar `.env` com:
+
+```
+PORT=3000
+
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cofredigital?schema=public
+
+JWT_SECRET=uma-string-bem-grande-e-segura
+JWT_EXPIRES_IN_SECONDS=900
+
+ENCRYPTION_KEY_BASE64=dYmnf9qUOe21GhnibuiTtTxWVxGgeIafW5m6agJGSdw=
+
+RABBITMQ_URL=amqp://guest:guest@localhost:5672
+RABBITMQ_EXCHANGE=secret-release-ex
+RABBITMQ_QUEUE=secret-release
+RABBITMQ_DELAY_QUEUE=secret-release.delay
+RABBITMQ_DELAY_MS=30000
+```
 
 3. Rodar migrations:
 
@@ -223,33 +287,9 @@ npm run start
 
 ---
 
-# ⚙️ Variáveis de Ambiente
-
-Exemplo `.env`:
-
-```
-PORT=3000
-
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cofredigital
-
-JWT_SECRET=supersecret
-JWT_EXPIRES_IN_SECONDS=3600
-
-CRYPTO_SECRET=chave-super-secreta-32-bytes
-CRYPTO_ALGORITHM=aes-256-gcm
-
-RABBITMQ_URL=amqp://guest:guest@localhost:5672
-RABBITMQ_EXCHANGE=secret-release-ex
-RABBITMQ_QUEUE=secret-release
-RABBITMQ_DELAY_QUEUE=secret-release.delay
-RABBITMQ_DELAY_MS=30000
-```
-
----
-
 # 🗄️ Migrations
 
-Aplicar migrations em produção:
+Produção:
 
 ```
 npx prisma migrate deploy
@@ -278,24 +318,24 @@ npm run migrate
 
 # 🔐 Segurança
 
-- JWT com Strategy oficial do Nest
-- Guards protegendo rotas
-- Validação de DTO com class-validator
-- Criptografia AES-256-GCM autenticada
-- Segredos nunca armazenados em texto puro
-- Validação de variáveis de ambiente com Zod
-- Controle de acesso por ownerId
+- JWT com Strategy oficial do Nest  
+- Guards protegendo rotas  
+- Validação com class-validator  
+- Criptografia AES-256-GCM autenticada  
+- Segredos nunca armazenados em texto puro  
+- Validação de variáveis de ambiente com Zod  
+- Controle de acesso por ownerId  
 
 ---
 
 # ⭐ Extras Implementados
 
-- Delay queue via TTL + DLX
-- Processamento transacional
-- Histórico de liberação
-- Docker Compose completo
-- Estrutura modular organizada
-- Testes unitários das regras centrais
+- Delay queue via TTL + DLX  
+- Processamento transacional  
+- Histórico de liberação  
+- Docker Compose completo  
+- Estrutura modular organizada  
+- Testes unitários das regras centrais  
 
 ---
 
@@ -310,6 +350,6 @@ Todos os requisitos obrigatórios do desafio foram implementados conforme solici
 ✔ Swagger  
 ✔ Testes  
 ✔ Docker Compose  
-✔ Migrations  
+✔ Migrations automáticas  
 
 Sistema pronto para execução e avaliação.

@@ -1,4 +1,4 @@
-import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
+import { INestApplication, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
 import { Pool } from 'pg';
@@ -11,36 +11,33 @@ function ensureEnv(name: string): string {
 }
 
 @Injectable()
-export class PrismaService implements OnModuleInit {
+export class PrismaService implements OnModuleInit, OnModuleDestroy {
   private readonly pool: Pool;
   private readonly client: PrismaClient;
 
   constructor() {
-    // Prisma 7 + adapter: o Client não lê DATABASE_URL do schema.
-    // A conexão vem do Pool do pg.
     const connectionString = ensureEnv('DATABASE_URL');
-
     this.pool = new Pool({ connectionString });
     const adapter = new PrismaPg(this.pool);
-
     this.client = new PrismaClient({ adapter });
   }
 
-  // opcional: expor prisma para repositories (prisma.user, prisma.secret etc.)
   get prisma(): PrismaClient {
     return this.client;
   }
 
   async onModuleInit() {
-    // com adapter, não precisa chamar $connect explicitamente, mas é seguro validar.
     await this.client.$connect();
   }
 
+  async onModuleDestroy() {
+    await this.client.$disconnect().catch(() => undefined);
+    await this.pool.end().catch(() => undefined);
+  }
+
   async enableShutdownHooks(app: INestApplication) {
-    // fecha o app e o pool
     const shutdown = async () => {
-      await this.client.$disconnect().catch(() => undefined);
-      await this.pool.end().catch(() => undefined);
+      await this.onModuleDestroy();
       await app.close().catch(() => undefined);
     };
 

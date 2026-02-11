@@ -6,3 +6,127 @@ datasource db {
   provider = "postgresql"
 }
 
+// ===============================
+// Enums
+// ===============================
+enum SecretStatus {
+  STORED
+  AVAILABLE
+
+  @@map("secret_status")
+}
+
+enum ScheduleStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  CANCELED
+
+  @@map("schedule_status")
+}
+
+enum ReleaseEventType {
+  RELEASED
+
+  @@map("release_event_type")
+}
+
+// ===============================
+// Models
+// ===============================
+model User {
+  id           String @id @default(uuid()) @db.Uuid
+  name         String @db.VarChar(120)
+  email        String @unique @db.VarChar(255)
+  passwordHash String @map("password_hash") @db.VarChar(255)
+
+  secrets   Secret[]
+  schedules SecretReleaseSchedule[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
+
+model Secret {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  title       String? @db.VarChar(200)
+  description String? @db.VarChar(1000)
+
+  cipherText String @map("cipher_text")
+  iv         String @db.VarChar(255)
+  authTag    String? @map("auth_tag") @db.VarChar(255)
+  algorithm  String @db.VarChar(50)
+  keyVersion Int    @default(1) @map("key_version")
+
+  status      SecretStatus @default(STORED) @map("status")
+  availableAt DateTime?    @map("available_at") @db.Timestamptz(6)
+
+  schedules SecretReleaseSchedule[]
+  history   SecretReleaseHistory[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([ownerId, createdAt], map: "secrets_owner_id_created_at_idx")
+  @@index([ownerId], map: "secrets_owner_id_idx")
+  @@index([status], map: "secrets_status_idx")
+
+  @@map("secrets")
+}
+
+model SecretReleaseSchedule {
+  id String @id @default(uuid()) @db.Uuid
+
+  secretId String @map("secret_id") @db.Uuid
+  secret   Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  ownerId String @map("owner_id") @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  scheduledFor DateTime       @map("scheduled_for") @db.Timestamptz(6)
+  status       ScheduleStatus @default(PENDING) @map("status")
+
+  correlationId String? @map("correlation_id") @db.VarChar(255)
+  attempts      Int     @default(0)
+  processedAt   DateTime? @map("processed_at") @db.Timestamptz(6)
+  lastError     String?  @map("last_error")
+
+  history SecretReleaseHistory[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([secretId], map: "schedules_secret_id_idx")
+  @@index([ownerId], map: "schedules_owner_id_idx")
+  @@index([scheduledFor], map: "schedules_scheduled_for_idx")
+  @@index([status, scheduledFor], map: "schedules_status_scheduled_for_idx")
+  @@index([correlationId], map: "schedules_correlation_id_idx")
+
+  @@map("secret_release_schedules")
+}
+
+model SecretReleaseHistory {
+  id String @id @default(uuid()) @db.Uuid
+
+  secretId String @map("secret_id") @db.Uuid
+  secret   Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  scheduleId String? @map("schedule_id") @db.Uuid
+  schedule   SecretReleaseSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
+  type ReleaseEventType @default(RELEASED) @map("type")
+
+  metadataJson Json? @map("metadata_json")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([secretId, createdAt], map: "history_secret_id_created_at_idx")
+  @@index([scheduleId, createdAt], map: "history_schedule_id_created_at_idx")
+
+  @@map("secret_release_history")
+}

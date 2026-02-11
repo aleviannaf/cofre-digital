@@ -9,6 +9,13 @@ const envSchema = z.object({
   JWT_EXPIRES_IN_SECONDS: z.coerce.number().default(900),
 
   ENCRYPTION_KEY_BASE64: z.string().min(1),
+
+  RABBITMQ_URL: z.string().min(1),
+  RABBITMQ_EXCHANGE: z.string().min(1).default('secret-release-ex'),
+  RABBITMQ_QUEUE: z.string().min(1).default('secret-release'),
+  RABBITMQ_DELAY_QUEUE: z.string().min(1).default('secret-release.delay'),
+  RABBITMQ_DELAY_MS: z.coerce.number().int().positive().default(30000),
+
 });
 
 export type Env = z.infer<typeof envSchema>;

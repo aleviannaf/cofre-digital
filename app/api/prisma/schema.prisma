@@ -18,12 +18,14 @@ enum SecretStatus {
 
 enum ScheduleStatus {
   PENDING
+  QUEUED
   PROCESSED
   FAILED
   CANCELED
 
   @@map("schedule_status")
 }
+
 
 enum ReleaseEventType {
   RELEASED

@@ -5,6 +5,8 @@ import { AppService } from './app.service';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { validateEnv } from './config/env';
 import { AuthModule } from './modules/auth/auth.module';
+import { SecretsModule } from './modules/secrets/secrets.module';
+
 
 @Module({
   imports: [
@@ -15,6 +17,7 @@ import { AuthModule } from './modules/auth/auth.module';
     }),
     PrismaModule,
     AuthModule,
+    SecretsModule
   ],
   controllers: [AppController],
   providers: [AppService],

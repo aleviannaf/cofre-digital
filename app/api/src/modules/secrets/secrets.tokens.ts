@@ -1,0 +1,1 @@
+export const SECRETS_REPOSITORY = Symbol('SECRETS_REPOSITORY');

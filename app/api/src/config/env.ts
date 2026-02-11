@@ -7,6 +7,8 @@ const envSchema = z.object({
 
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN_SECONDS: z.coerce.number().default(900),
+
+  ENCRYPTION_KEY_BASE64: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

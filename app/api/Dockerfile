@@ -7,13 +7,10 @@ RUN npm ci
 
 COPY . .
 
-# Prisma 7 pode tentar validar env via prisma.config.ts.
-# Passamos DATABASE_URL dummy apenas para o generate.
-RUN DATABASE_URL="postgresql://postgres:postgres@localhost:5432/cofredigital?schema=public" npx prisma generate
+RUN DATABASE_URL="postgresql://user:pass@dummy:5432/db?schema=public" npx prisma generate
 
 RUN npm run build
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
-
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"]

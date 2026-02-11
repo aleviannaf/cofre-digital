@@ -1,0 +1,15 @@
+# deps/build
+node_modules/
+dist/
+coverage/
+
+# env
+.env
+.env.local
+.env.docker
+
+# prisma local artifacts (ok versionar migrations, não versionar local db)
+prisma/dev.db
+
+# logs
+*.log

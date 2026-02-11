@@ -176,32 +176,25 @@ Cobertura inclui:
 
 # 🐳 Executando com Docker
 
-## Pré-requisitos
+## 1️⃣ Configurar variáveis
 
-- Docker  
-- Docker Compose  
+Copiar:
 
-## 1️⃣ Configurar variáveis de ambiente
-
-O projeto utiliza `.env.docker`.
-
-Caso exista apenas o arquivo de exemplo, copie:
-
-```
+```bash
 cp .env.docker.example .env.docker
 ```
 
-O arquivo deve conter:
+Exemplo de configuração:
 
-```
+```env
 PORT=3000
 
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/cofredigital?schema=public
 
-JWT_SECRET=uma-string-bem-grande-e-segura
+JWT_SECRET=your-super-secret-key
 JWT_EXPIRES_IN_SECONDS=900
 
-ENCRYPTION_KEY_BASE64=dYmnf9qUOe21GhnibuiTtTxWVxGgeIafW5m6agJGSdw=
+ENCRYPTION_KEY_BASE64=base64-encoded-32-bytes-key
 
 RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
 RABBITMQ_EXCHANGE=secret-release-ex
@@ -210,38 +203,44 @@ RABBITMQ_DELAY_QUEUE=secret-release.delay
 RABBITMQ_DELAY_MS=30000
 ```
 
-## 2️⃣ Subir os containers
+---
 
-Na raiz do projeto:
+## 2️⃣ Subir ambiente
 
-```
+```bash
 docker compose up -d --build
 ```
 
-O comando irá:
+Isso irá:
 
-- Subir PostgreSQL  
-- Subir RabbitMQ  
-- Gerar Prisma Client  
-- Aplicar automaticamente as migrations  
-- Iniciar a API  
+- Subir PostgreSQL
+- Subir RabbitMQ
+- Gerar Prisma Client
+- Aplicar migrations automaticamente
+- Iniciar a API
 
 Swagger:
-http://localhost:3000/docs  
-
-RabbitMQ UI:
-http://localhost:15672  
-Usuário: guest  
-Senha: guest  
-
-## 3️⃣ Reiniciar ambiente do zero (opcional)
 
 ```
+http://localhost:3000/docs
+```
+
+RabbitMQ UI:
+
+```
+http://localhost:15672
+User: guest
+Pass: guest
+```
+
+---
+
+## 3️⃣ Reset completo
+
+```bash
 docker compose down -v
 docker compose up -d --build
 ```
-
-Após esses passos, o sistema estará totalmente funcional sem necessidade de execução manual de migrations.
 
 ---
 

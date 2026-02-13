@@ -1,0 +1,150 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-02-13T00:00:00.000Z",
+  "__export_source": "cofre-digital-insomnia.json",
+  "resources": [
+    {
+      "_id": "wrk_cofre_digital",
+      "_type": "workspace",
+      "name": "cofre-digital",
+      "description": "Colecao da API Cofre Digital de Segredos",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_cofre_digital_base",
+      "_type": "environment",
+      "parentId": "wrk_cofre_digital",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:3000",
+        "token": ""
+      }
+    },
+    {
+      "_id": "fld_health",
+      "_type": "request_group",
+      "parentId": "wrk_cofre_digital",
+      "name": "Health"
+    },
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "parentId": "wrk_cofre_digital",
+      "name": "Auth"
+    },
+    {
+      "_id": "fld_secrets",
+      "_type": "request_group",
+      "parentId": "wrk_cofre_digital",
+      "name": "Secrets"
+    },
+    {
+      "_id": "req_health_root",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "GET /",
+      "method": "GET",
+      "url": "{{ base_url }}/",
+      "body": {},
+      "parameters": [],
+      "headers": []
+    },
+    {
+      "_id": "req_auth_register",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "POST /auth/register",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/register",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Ana Silva\",\n  \"email\": \"ana@email.com\",\n  \"password\": \"minhaSenhaForte123\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "_id": "req_auth_login",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "POST /auth/login",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/login",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"ana@email.com\",\n  \"password\": \"minhaSenhaForte123\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "_id": "req_auth_me",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "GET /auth/me",
+      "method": "GET",
+      "url": "{{ base_url }}/auth/me",
+      "body": {},
+      "parameters": []
+    },
+    {
+      "_id": "req_secrets_create",
+      "_type": "request",
+      "parentId": "fld_secrets",
+      "name": "POST /secrets",
+      "method": "POST",
+      "url": "{{ base_url }}/secrets",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"title\": \"Token do GitHub\",\n  \"description\": \"Acesso da conta principal\",\n  \"secret\": \"meu-segredo-super-confidencial\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "_id": "req_secrets_get_by_id",
+      "_type": "request",
+      "parentId": "fld_secrets",
+      "name": "GET /secrets/{id}",
+      "method": "GET",
+      "url": "{{ base_url }}/secrets/{{ secret_id }}",
+      "body": {},
+      "parameters": []
+    },
+    {
+      "_id": "req_secrets_schedule",
+      "_type": "request",
+      "parentId": "fld_secrets",
+      "name": "POST /secrets/{id}/schedules",
+      "method": "POST",
+      "url": "{{ base_url }}/secrets/{{ secret_id }}/schedules",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"scheduledFor\": \"2026-12-31T18:30:00.000Z\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    }
+  ]
+}

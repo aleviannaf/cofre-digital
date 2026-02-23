@@ -12,7 +12,7 @@ import { SecretsModule } from './modules/secrets/secrets.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', '.env.local', '.env.docker'],
+      envFilePath: ['.env.local', '.env', '.env.docker'],
       validate: () => validateEnv(),
     }),
     PrismaModule,
@@ -23,5 +23,4 @@ import { SecretsModule } from './modules/secrets/secrets.module';
   providers: [AppService],
 })
 export class AppModule {}
-
 

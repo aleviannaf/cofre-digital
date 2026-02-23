@@ -8,15 +8,29 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ✅ validação global (Swagger + runtime consistentes)
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  app.enableCors({
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+  });
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   const prisma = app.get(PrismaService);
   await prisma.enableShutdownHooks(app);
 
   const config = new DocumentBuilder()
     .setTitle('Cofre Digital de Segredos')
-    .setDescription('API para armazenar segredos criptografados e agendar liberação.')
+    .setDescription(
+      'API para armazenar segredos criptografados e agendar liberação.',
+    )
     .setVersion('1.0.0')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
     .build();

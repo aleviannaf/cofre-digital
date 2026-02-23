@@ -1,47 +1,63 @@
-version: "3.9"
-
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16-alpine
     container_name: postgres_db
-    restart: unless-stopped
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
-    environment:
-      POSTGRES_DB: cofredigital
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cofredigital"]
+      test: ["CMD", "pg_isready", "-U", "${DB_USER}", "-d", "${DB_NAME}"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 5
+  
+  adminer:
+    image: adminer
+    container_name: adminer_web
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13-management-alpine
     container_name: rabbitmq
-    restart: unless-stopped
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASS}
     ports:
-      - "5672:5672"    # AMQP
-      - "15672:15672"  # UI
+      - "5672:5672"   
+      - "15672:15672"
     healthcheck:
-      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
-      interval: 5s
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 10
 
   api:
     build:
       context: ./app/api
       dockerfile: Dockerfile
     container_name: nest_api
-    restart: unless-stopped
+    restart: always
     env_file:
-      - .env.docker
+      - .env
     ports:
       - "3000:3000"
+    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:prod"
     depends_on:
       postgres:
         condition: service_healthy

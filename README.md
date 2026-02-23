@@ -181,28 +181,8 @@ Cobertura inclui:
 Copiar:
 
 ```bash
-cp .env.docker.example .env.docker
+cp .env.example .env
 ```
-
-Exemplo de configuração:
-
-```env
-PORT=3000
-
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/cofredigital?schema=public
-
-JWT_SECRET=your-super-secret-key
-JWT_EXPIRES_IN_SECONDS=900
-
-ENCRYPTION_KEY_BASE64=base64-encoded-32-bytes-key
-
-RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-RABBITMQ_EXCHANGE=secret-release-ex
-RABBITMQ_QUEUE=secret-release
-RABBITMQ_DELAY_QUEUE=secret-release.delay
-RABBITMQ_DELAY_MS=30000
-```
-
 ---
 
 ## 2️⃣ Subir ambiente
@@ -229,8 +209,8 @@ RabbitMQ UI:
 
 ```
 http://localhost:15672
-User: guest
-Pass: guest
+User: valor de RABBIT_USER no .env
+Pass: valor de RABBIT_PASS no .env
 ```
 
 ---
@@ -253,35 +233,42 @@ cd app/api
 npm install
 ```
 
-2. Criar `.env` com:
+2. Configurar variáveis para rodar a API no host (modo híbrido):
 
 ```
-PORT=3000
-
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/cofredigital?schema=public
-
-JWT_SECRET=uma-string-bem-grande-e-segura
-JWT_EXPIRES_IN_SECONDS=900
-
-ENCRYPTION_KEY_BASE64=dYmnf9qUOe21GhnibuiTtTxWVxGgeIafW5m6agJGSdw=
-
-RABBITMQ_URL=amqp://guest:guest@localhost:5672
-RABBITMQ_EXCHANGE=secret-release-ex
-RABBITMQ_QUEUE=secret-release
-RABBITMQ_DELAY_QUEUE=secret-release.delay
-RABBITMQ_DELAY_MS=30000
+# Mantenha a infra no Docker usando o .env da raiz
+# e crie um override local para a API em app/api:
+# cp app/api/.env.local.example app/api/.env.local
 ```
 
-3. Rodar migrations:
+3. Subir a infraestrutura (sem a API):
+
+```
+docker compose up -d postgres rabbitmq adminer
+```
+
+4. Preparar env local para Prisma CLI (o Prisma lê `app/api/.env`):
+
+```
+cp .env.local .env
+```
+
+5. Gerar Prisma Client (necessário para rodar a API local):
+
+```
+npx prisma generate
+```
+
+6. Rodar migrations:
 
 ```
 npm run migrate
 ```
 
-4. Iniciar aplicação:
+7. Iniciar aplicação (desenvolvimento):
 
 ```
-npm run start
+npm run start:dev
 ```
 
 ---

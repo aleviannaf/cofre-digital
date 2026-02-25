@@ -1,341 +1,367 @@
-# Desafio Técnico — Cofre Digital de Segredos (NestJS)
+# Cofre Digital de Segredos (NestJS)
 
-API desenvolvida como solução para o desafio técnico **Cofre Digital de Segredos – 02/2026**.
+Backend para armazenamento de segredos criptografados com autenticação JWT e agendamento de liberação assíncrona via RabbitMQ.
 
-O sistema permite que usuários autenticados armazenem segredos criptografados e agendem sua liberação futura, com processamento assíncrono via RabbitMQ.
+O projeto possui dois entrypoints de execução:
 
----
+- `API` HTTP (NestJS + Swagger)
+- `Worker` NestJS sem servidor HTTP para consumo/processamento da fila
 
-# 📌 Objetivo
+## Visão Geral
 
-Construir uma API backend utilizando NestJS, Prisma, PostgreSQL e RabbitMQ que permita:
+O sistema permite:
 
-- Autenticação de usuários
-- Armazenamento seguro de segredos criptografados
-- Agendamento de liberação futura
-- Processamento assíncrono via fila
-- Documentação com Swagger
-- Testes unitários das regras centrais
+- cadastrar/autenticar usuários com JWT
+- armazenar segredos criptografados (AES-256-GCM)
+- agendar liberação futura de segredos
+- processar agendamentos de forma assíncrona com RabbitMQ
+- registrar histórico de liberação
 
----
+## Arquitetura
 
-# 🧱 Arquitetura
+A aplicação é organizada em módulos do NestJS e separa responsabilidades por feature.
 
-A aplicação segue arquitetura modular baseada em features no NestJS.
+- `app/api/src/modules/auth`: autenticação, JWT, guard e estratégia
+- `app/api/src/modules/secrets`: criação/leitura de segredos, agendamento e processamento assíncrono
+- `app/api/src/modules/users`: persistência de usuários
+- `app/api/src/integrations/rabbitmq`: cliente, publisher e configuração de filas
+- `app/api/src/database/prisma`: integração Prisma/PostgreSQL
+- `app/api/src/shared/crypto`: criptografia AES-256-GCM
 
-```
-app/api/
-  prisma/
-  src/
-    config/
-    database/
-    integrations/
-      rabbitmq/
-    modules/
-      auth/
-      users/
-      secrets/
-```
+### Entrypoints
 
-Cada feature contém:
+- `app/api/src/main.ts`
+  - sobe a API HTTP
+  - habilita Swagger em `/docs`
+  - aplica `ValidationPipe` global
+- `app/api/src/main-worker.ts`
+  - sobe um app Nest para worker (`WorkerModule`)
+  - chama apenas `app.init()` (sem `listen()`)
+  - não expõe porta HTTP
 
-- http/ → Controllers, Guards, Decorators  
-- application/ → Serviços e regras de negócio  
-- domain/ → Contratos e entidades  
-- infrastructure/ → Persistência e integrações  
+### Módulos de runtime
 
----
+- `AppModule`
+  - API HTTP com controllers (`auth`, `secrets`, `schedules`)
+- `WorkerModule`
+  - sem controllers HTTP
+  - importa apenas `ConfigModule`, `PrismaModule` e `RabbitMQModule`
+  - registra `SecretReleaseConsumerService` e `SecretReleaseProcessorService`
 
-# 🚀 Tecnologias Utilizadas
+## Funcionalidades Implementadas
 
-- Node.js 22 LTS  
-- NestJS (TypeScript)  
-- Prisma ORM (v7)  
-- PostgreSQL 16  
-- RabbitMQ  
-- JWT (Passport Strategy)  
-- AES-256-GCM (criptografia real)  
-- Docker & Docker Compose  
-- Jest  
-- Swagger (OpenAPI)  
+### Autenticação
 
----
+Rotas:
 
-# ✅ Funcionalidades Implementadas
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /auth/me` (JWT)
 
-## 1️⃣ Autenticação
+Comportamentos implementados:
 
-- POST /auth/register  
-- POST /auth/login  
-- GET /auth/me (protegido)
+- hash de senha com Argon2
+- emissão de JWT
+- guard `JwtAuthGuard`
+- strategy JWT via Passport
 
-Segurança:
+### Secrets
 
-- Hash seguro de senha  
-- JWT Bearer Token  
-- Passport Strategy  
-- Guard de autenticação  
+Rotas protegidas por JWT:
 
----
+- `POST /secrets`
+- `GET /secrets/:id`
+- `POST /secrets/:id/schedules`
 
-## 2️⃣ Secrets
+Comportamentos implementados:
 
-Usuários autenticados podem:
+- criptografia em repouso com `aes-256-gcm`
+- persistência de `cipherText`, `iv`, `authTag`, `algorithm`, `keyVersion`
+- leitura do segredo com descriptografia no retorno
+- validação de ownership (`ownerId`)
+- agendamento com validação de data futura
 
-### ➤ Criar segredo criptografado
+### Processamento Assíncrono (RabbitMQ)
 
-- Criptografia simétrica AES-256-GCM  
-- Armazena:
-  - cipherText  
-  - IV  
-  - authTag  
-  - algorithm  
-  - keyVersion  
-- Nunca armazena texto puro  
+Fluxo atual:
 
-### ➤ Recuperar segredo
+1. criação de agendamento (`PENDING`)
+2. publicação em RabbitMQ e atualização para `QUEUED`
+3. consumer processa mensagem
+4. se ainda não chegou o horário, reenvia para delay queue
+5. quando chega o horário, atualiza secret/schedule e cria histórico
 
-- Apenas o dono pode acessar  
-- Descriptografia antes do retorno  
-- Validação de ownership  
+Detalhes técnicos implementados:
 
-### ➤ Agendar liberação futura
+- exchange `direct`
+- queue principal
+- delay queue com TTL + DLX (sem plugin externo)
+- processamento transacional com Prisma
+- controle de tentativas no agendamento
+- retry/backoff na conexão com RabbitMQ
 
-- POST /secrets/:id/schedules  
-- Data/hora futura obrigatória  
-- Publicação automática em RabbitMQ  
+## Modos de Execução (`RUN_MODE`)
 
----
+A variável `RUN_MODE` controla se o consumer de RabbitMQ deve iniciar.
 
-## 3️⃣ Processamento Assíncrono
+- `RUN_MODE=api` (default)
+  - API HTTP sobe normalmente
+  - consumer é desabilitado e registra log `Consumer disabled (RUN_MODE=api)`
+- `RUN_MODE=worker`
+  - worker sobe sem HTTP
+  - consumer inicia e passa a consumir a fila
 
-Fluxo implementado:
+## Tecnologias
 
-1. Schedule criado → status PENDING  
-2. Mensagem publicada → status QUEUED  
-3. Consumer:
-   - Se horário ainda não chegou → envia para delay queue (TTL + DLX)  
-   - Se chegou → processa  
-4. Ao processar:
-   - Secret → AVAILABLE  
-   - Schedule → PROCESSED  
-   - Histórico criado em secret_release_history  
+- Node.js 22
+- NestJS 11
+- TypeScript
+- Prisma ORM 7
+- PostgreSQL 16
+- RabbitMQ (amqplib)
+- JWT + Passport
+- Argon2
+- Zod (validação de env)
+- Swagger/OpenAPI
+- Jest
+- Docker / Docker Compose
 
-### Estratégia Técnica
+## Estrutura do Projeto
 
-Delay implementado usando:
-
-- x-message-ttl  
-- x-dead-letter-exchange  
-- x-dead-letter-routing-key  
-
-Sem uso de plugins externos.
-
-Garantias implementadas:
-
-- Idempotência  
-- Processamento transacional  
-- Controle de tentativas  
-- Retry simples via delay queue  
-
----
-
-# 📖 Documentação
-
-Swagger disponível em:
-
-http://localhost:3000/docs
-
-Inclui:
-
-- Autenticação JWT  
-- Schemas tipados  
-- Exemplos de request  
-- Responses 400 / 401 / 403 / 404  
-
----
-
-# 🧪 Testes
-
-Executar:
-
-```
-npm run test
+```text
+.
+├── docker-compose.yml
+├── .env.example
+└── app/
+    └── api/
+        ├── Dockerfile
+        ├── prisma/
+        ├── src/
+        │   ├── main.ts
+        │   ├── main-worker.ts
+        │   ├── app.module.ts
+        │   ├── worker.module.ts
+        │   ├── config/
+        │   ├── database/
+        │   ├── integrations/rabbitmq/
+        │   ├── modules/
+        │   └── shared/
+        ├── test/
+        ├── .env.local.example
+        └── package.json
 ```
 
-Cobertura inclui:
+## Variáveis de Ambiente
 
-- Serviço de criptografia  
-- Password hashing  
-- Auth service  
-- RabbitMQ publisher  
-- Processor de agendamento  
-- Regras centrais de negócio  
+### Arquivos de exemplo
 
----
+- Raiz (Docker Compose): `.env.example`
+- API local (host): `app/api/.env.local.example`
 
-# 🐳 Executando com Docker
+### Variáveis principais (API/Worker)
 
-## 1️⃣ Configurar variáveis
+Obrigatórias (sem default no código):
 
-Copiar:
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `ENCRYPTION_KEY_BASE64` (deve decodificar para 32 bytes)
+- `RABBITMQ_URL`
+
+Com default no código (`app/api/src/config/env.ts`):
+
+- `RUN_MODE=api`
+- `PORT=3000`
+- `JWT_EXPIRES_IN_SECONDS=900`
+- `RABBITMQ_EXCHANGE=secret-release-ex`
+- `RABBITMQ_QUEUE=secret-release`
+- `RABBITMQ_DELAY_QUEUE=secret-release.delay`
+- `RABBITMQ_DELAY_MS=30000`
+- `RABBITMQ_CONNECT_RETRIES=10`
+- `RABBITMQ_CONNECT_RETRY_DELAY_MS=1000`
+
+## Executando com Docker Compose (API + Worker)
+
+### 1. Configurar variáveis
+
+Na raiz do projeto:
 
 ```bash
 cp .env.example .env
 ```
----
 
-## 2️⃣ Subir ambiente
-
-```bash
-docker compose up -d --build
-```
-
-Isso irá:
-
-- Subir PostgreSQL
-- Subir RabbitMQ
-- Gerar Prisma Client
-- Aplicar migrations automaticamente
-- Iniciar a API
-
-Swagger:
-
-```
-http://localhost:3000/docs
-```
-
-RabbitMQ UI:
-
-```
-http://localhost:15672
-User: valor de RABBIT_USER no .env
-Pass: valor de RABBIT_PASS no .env
-```
-
----
-
-## 3️⃣ Reset completo
+### 2. Subir o ambiente
 
 ```bash
-docker compose down -v
-docker compose up -d --build
+docker compose up --build
 ```
 
----
+Serviços iniciados:
 
-# 💻 Executando Localmente
+- `postgres`
+- `rabbitmq`
+- `adminer`
+- `api` (HTTP, `RUN_MODE=api`)
+- `worker` (sem HTTP, `RUN_MODE=worker`)
 
-1. Instalar dependências:
+Observações do estado atual:
 
+- `api` e `worker` usam a mesma imagem base da API no compose
+- a imagem da API executa `npm run build` e valida a presença de `dist/main-worker.js`
+- o container `api` executa migrations no startup (`prisma migrate deploy`)
+- o container `worker` executa `npm run start:worker:prod`
+
+### Endereços úteis
+
+- API: `http://localhost:3000`
+- Swagger: `http://localhost:3000/docs`
+- RabbitMQ UI: `http://localhost:15672`
+- Adminer: `http://localhost:8080`
+- PostgreSQL (host): `localhost:5433`
+
+### Logs
+
+Acompanhar logs da API e worker:
+
+```bash
+docker compose logs -f api worker
 ```
+
+## Executando Localmente (desenvolvimento)
+
+A recomendação prática é rodar a infraestrutura via Docker e a API/worker no host.
+
+### 1. Infraestrutura
+
+Na raiz:
+
+```bash
+cp .env.example .env
+docker compose up -d postgres rabbitmq adminer
+```
+
+### 2. Configuração local da API
+
+```bash
+cp app/api/.env.local.example app/api/.env.local
+```
+
+Ajuste os valores (principalmente `DATABASE_URL` e `RABBITMQ_URL`) para `localhost` se necessário.
+
+### 3. Dependências
+
+```bash
 cd app/api
 npm install
 ```
 
-2. Configurar variáveis para rodar a API no host (modo híbrido):
+### 4. Prisma (CLI)
 
-```
-# Mantenha a infra no Docker usando o .env da raiz
-# e crie um override local para a API em app/api:
-# cp app/api/.env.local.example app/api/.env.local
-```
+O Prisma CLI precisa de `DATABASE_URL` disponível no ambiente ao rodar comandos como `prisma generate` e `migrate`.
 
-3. Subir a infraestrutura (sem a API):
+Opções comuns:
 
-```
-docker compose up -d postgres rabbitmq adminer
-```
+- exportar `DATABASE_URL` no shell
+- manter um `app/api/.env` com a `DATABASE_URL` válida para o ambiente local
 
-4. Preparar env local para Prisma CLI (o Prisma lê `app/api/.env`):
+Gerar client:
 
-```
-cp .env.local .env
-```
-
-5. Gerar Prisma Client (necessário para rodar a API local):
-
-```
+```bash
 npx prisma generate
 ```
 
-6. Rodar migrations:
+Aplicar migrations:
 
-```
+```bash
 npm run migrate
 ```
 
-7. Iniciar aplicação (desenvolvimento):
+### 5. Rodar API e worker em dev
 
-```
-npm run start:dev
-```
+Terminal 1 (API HTTP):
 
----
-
-# 🗄️ Migrations
-
-Produção:
-
-```
-npx prisma migrate deploy
+```bash
+RUN_MODE=api npm run start:dev
 ```
 
-Script disponível:
+Terminal 2 (worker):
 
-```
-npm run migrate
-```
-
----
-
-# 📦 Scripts Disponíveis
-
-```
-"scripts": {
-  "start": "nest start",
-  "build": "nest build",
-  "migrate": "prisma migrate deploy",
-  "test": "jest"
-}
+```bash
+RUN_MODE=worker npm run start:worker
 ```
 
----
+Observação: o worker usa `main-worker` e não abre porta HTTP.
 
-# 🔐 Segurança
+## Rotas HTTP Disponíveis
 
-- JWT com Strategy oficial do Nest  
-- Guards protegendo rotas  
-- Validação com class-validator  
-- Criptografia AES-256-GCM autenticada  
-- Segredos nunca armazenados em texto puro  
-- Validação de variáveis de ambiente com Zod  
-- Controle de acesso por ownerId  
+### Rota raiz
 
----
+- `GET /` -> retorna `Hello World!`
 
-# ⭐ Extras Implementados
+### Auth
 
-- Delay queue via TTL + DLX  
-- Processamento transacional  
-- Histórico de liberação  
-- Docker Compose completo  
-- Estrutura modular organizada  
-- Testes unitários das regras centrais  
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /auth/me` (Bearer token)
 
----
+Payloads (resumo):
 
-# 📌 Status Final
+- `register`: `name`, `email`, `password` (`password` com mínimo de 8)
+- `login`: `email`, `password`
 
-Todos os requisitos obrigatórios do desafio foram implementados conforme solicitado:
+### Secrets (Bearer token)
 
-✔ Autenticação  
-✔ Criptografia real  
-✔ Agendamento  
-✔ RabbitMQ  
-✔ Swagger  
-✔ Testes  
-✔ Docker Compose  
-✔ Migrations automáticas  
+- `POST /secrets`
+  - payload: `secret` (obrigatório), `title?`, `description?`
+- `GET /secrets/:id`
+  - retorna segredo descriptografado para o owner
+- `POST /secrets/:id/schedules`
+  - payload: `scheduledFor` (ISO date futura)
 
-Sistema pronto para execução e avaliação.
+## RabbitMQ: Resiliência de Conexão
+
+O cliente RabbitMQ implementa retry com backoff linear no `onModuleInit`.
+
+- tentativas: `RABBITMQ_CONNECT_RETRIES` (default `10`)
+- atraso base: `RABBITMQ_CONNECT_RETRY_DELAY_MS` (default `1000` ms)
+- backoff: `base * tentativa` (1x, 2x, 3x...)
+
+Se todas as tentativas falharem, a aplicação registra erro claro e falha o processo (comportamento útil para restart pelo Docker).
+
+## Testes
+
+Executar na pasta `app/api`:
+
+```bash
+npm run test
+npm run test:e2e
+```
+
+Também disponíveis:
+
+- `npm run test:watch`
+- `npm run test:cov`
+
+O projeto possui testes unitários e e2e (ex.: auth, crypto, publisher RabbitMQ, processor de liberação e endpoints principais).
+
+## Scripts (`app/api/package.json`)
+
+Principais scripts:
+
+- `npm run build` (executa `prisma generate` + build Nest)
+- `npm run start:dev`
+- `npm run start:prod`
+- `npm run start:worker`
+- `npm run start:worker:prod`
+- `npm run migrate`
+- `npm run test`
+- `npm run test:e2e`
+
+## Observações de Segurança
+
+- segredos são armazenados criptografados (não em texto puro)
+- autenticação via JWT Bearer
+- validação de payloads com `class-validator`
+- validação de variáveis de ambiente com Zod
+- controle de acesso por owner nas rotas de segredo/agendamento
+
+

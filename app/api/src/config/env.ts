@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   NODE_ENV: z.string().optional(),
+  RUN_MODE: z.enum(['api', 'worker']).default('api'),
   PORT: z.coerce.number().default(3000),
   DATABASE_URL: z.string().min(1),
 
@@ -15,7 +16,8 @@ const envSchema = z.object({
   RABBITMQ_QUEUE: z.string().min(1).default('secret-release'),
   RABBITMQ_DELAY_QUEUE: z.string().min(1).default('secret-release.delay'),
   RABBITMQ_DELAY_MS: z.coerce.number().int().positive().default(30000),
-
+  RABBITMQ_CONNECT_RETRIES: z.coerce.number().int().positive().default(10),
+  RABBITMQ_CONNECT_RETRY_DELAY_MS: z.coerce.number().int().positive().default(1000),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -29,4 +31,3 @@ export function validateEnv() {
   }
   return parsed.data;
 }
-

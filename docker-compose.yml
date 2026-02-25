@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     deploy:
@@ -48,6 +48,7 @@ services:
       retries: 10
 
   api:
+    image: cofre-digital-api:local
     build:
       context: ./app/api
       dockerfile: Dockerfile
@@ -57,7 +58,27 @@ services:
       - .env
     ports:
       - "3000:3000"
+    environment:
+      RUN_MODE: api
     command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:prod"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    image: cofre-digital-api:local
+    build:
+      context: ./app/api
+      dockerfile: Dockerfile
+    container_name: nest_worker
+    restart: always
+    env_file:
+      - .env
+    environment:
+      RUN_MODE: worker
+    command: sh -c "npm run start:worker:prod"
     depends_on:
       postgres:
         condition: service_healthy

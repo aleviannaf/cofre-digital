@@ -60,7 +60,7 @@ services:
       - "3000:3000"
     environment:
       RUN_MODE: api
-    command: sh -c "npx prisma generate && npx prisma migrate deploy && npm run start:prod"
+    command: sh -c "npx prisma migrate deploy && npm run start:prod"
     depends_on:
       postgres:
         condition: service_healthy
